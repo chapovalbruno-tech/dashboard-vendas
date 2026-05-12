@@ -261,8 +261,8 @@
       <div class="logo">
         <div class="logo-icon">📊</div>
         <div>
-          <h1>Metas de Vendas</h1>
-          <div class="subtitle">Acompanhamento em tempo real</div>
+          <h1>Fast Sistemas Construtivos</h1>
+          <div class="subtitle">Dashboard de Metas de Vendas</div>
         </div>
       </div>
       <div class="last-update" id="last-update">Carregando...</div>
@@ -302,14 +302,10 @@
 
     <!-- Gráficos lado a lado -->
     <div class="section-label">Gráficos</div>
-    <div class="charts-row">
+    <div style="max-width:420px; margin-bottom:36px;">
       <div class="chart-box">
-        <div class="chart-title">🍩 Progresso da Meta</div>
+        <div class="chart-title">🍩 Progresso da Meta Mensal</div>
         <div class="chart-wrap"><canvas id="chartDonut"></canvas></div>
-      </div>
-      <div class="chart-box">
-        <div class="chart-title">📅 Vendas por Dia — Semana Atual</div>
-        <div class="chart-wrap"><canvas id="chartDia"></canvas></div>
       </div>
     </div>
 
@@ -426,7 +422,7 @@ function parseDiario(rows) {
 }
 
 // ── Render ────────────────────────────────────────────────────────────────
-let donutChart = null, diaChart = null;
+let donutChart = null;
 
 function render(semanal, diario) {
   const { vendedores } = semanal;
@@ -477,35 +473,7 @@ function render(semanal, diario) {
     }
   });
 
-  // Gráfico de barras — dia da semana (semana mais recente com dados)
-  const semComDados = [...diario].reverse().find(s => s.totais.some(v=>v>0)) || diario[0];
-  const DIAS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
-  if (diaChart) diaChart.destroy();
-  diaChart = new Chart(document.getElementById('chartDia'), {
-    type: 'bar',
-    data: {
-      labels: DIAS,
-      datasets:[{
-        label:'Vendas (R$)',
-        data: semComDados ? semComDados.totais : Array(6).fill(0),
-        backgroundColor:'#2E75B6',
-        borderRadius:6,
-        borderSkipped:false,
-      }]
-    },
-    options:{
-      responsive:true, maintainAspectRatio:false,
-      plugins:{
-        legend:{display:false},
-        tooltip:{ callbacks:{ label: ctx => ' '+fmt(ctx.raw) } }
-      },
-      scales:{
-        x:{ grid:{color:'#1a2e4a'}, ticks:{color:'#4a6a94',font:{size:11}} },
-        y:{ grid:{color:'#1a2e4a'}, ticks:{color:'#4a6a94',font:{size:11},
-          callback: v => 'R$'+v.toLocaleString('pt-BR') }}
-      }
-    }
-  });
+  // Gráfico de barras removido
 
   // Semanas
   const metaSem = metaTotal / 4;
