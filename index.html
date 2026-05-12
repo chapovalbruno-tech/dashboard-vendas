@@ -361,54 +361,63 @@ function getBadge(p) {
 }
 
 // ── Parser CSV Semanal ─────────────────────────────────────────────────────
-// Estrutura: linha 0 = cabeçalho vazio, linha 1 = header cols, linhas 2-5 = vendedores, linha 6 = total
+// Estrutura real: col 0 vazia, col 1 = nome, col 2-5 = sem1-4, col 6 = total, col 7 = meta
 function parseSemanal(rows) {
-  // Encontrar linha de cabeçalho (contém "Vendedor")
-  let hdrIdx = rows.findIndex(r => r.some(c => String(c).trim() === 'Vendedor'));
-  if (hdrIdx < 0) hdrIdx = 1;
-  const hdr = rows[hdrIdx];
   const vendedores = [];
-  for (let i = hdrIdx+1; i < rows.length; i++) {
+  for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    const nome = String(r[0]||'').trim();
-    if (!nome || nome.toUpperCase().includes('TOTAL')) continue;
+    // Pegar o nome da col 1 (col 0 é vazia)
+    const nome = String(r[1]||'').trim();
+    if (!nome) continue;
+    // Ignorar linhas de título/cabeçalho/instrução
+    if (nome.toUpperCase().includes('LANÇAMENTO') ||
+        nome.toUpperCase().includes('LANCAMENTO') ||
+        nome === 'Vendedor' ||
+        nome.toUpperCase().includes('PREENCHA')) continue;
+    // Linha de total
+    if (nome.toUpperCase().includes('TOTAL')) continue;
     vendedores.push({
       nome,
-      sem1: parseBRL(r[1]), sem2: parseBRL(r[2]),
-      sem3: parseBRL(r[3]), sem4: parseBRL(r[4]),
-      total: parseBRL(r[5]),
-      meta:  parseBRL(r[6]),
+      sem1:  parseBRL(r[2]), sem2: parseBRL(r[3]),
+      sem3:  parseBRL(r[4]), sem4: parseBRL(r[5]),
+      total: parseBRL(r[6]),
+      meta:  parseBRL(r[7]),
     });
   }
-  // Linha de total
-  const totRow = rows.find(r => String(r[0]||'').toUpperCase().includes('TOTAL'));
-  return { vendedores, totRow };
+  return { vendedores };
 }
 
 // ── Parser CSV Diário ──────────────────────────────────────────────────────
-// 4 blocos de semana empilhados. Cada bloco: título, cabeçalho, 4 vendedores, total, vazio
+// Col 0 vazia, col 1 = nome/título, col 2-7 = seg-sab, col 8 = total
 function parseDiario(rows) {
   const semanas = [];
-  const DIAS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
   let i = 0;
   while (i < rows.length) {
-    const title = String(rows[i]?.[0]||'').trim();
-    if (title.toUpperCase().includes('LANÇAMENTO DIÁRIO') || title.toUpperCase().includes('LANCAMENTO DIARIO')) {
-      // próxima linha = cabeçalho, depois vendedores
-      const sem = { titulo: title, vendedores: [], totais: Array(6).fill(0) };
-      i += 2; // pular título e cabeçalho
+    const cell1 = String(rows[i]?.[1]||'').trim();
+    // Detectar início de bloco de semana
+    if (cell1.toUpperCase().includes('LANÇAMENTO DIÁRIO') ||
+        cell1.toUpperCase().includes('LANCAMENTO DIARIO')) {
+      const sem = { titulo: cell1, vendedores: [], totais: Array(6).fill(0) };
+      i += 2; // pular título e linha de cabeçalho
       while (i < rows.length) {
-        const nome = String(rows[i]?.[0]||'').trim();
-        if (!nome) { i++; break; }
+        const nome = String(rows[i]?.[1]||'').trim();
+        if (!nome || nome === 'Vendedor') { i++; continue; }
+        // Fim do bloco: linha vazia ou próximo bloco
+        if (nome.toUpperCase().includes('LANÇAMENTO') ||
+            nome.toUpperCase().includes('LANCAMENTO')) break;
+        if (nome.toUpperCase().includes('PREENCHA')) { i++; continue; }
         if (nome.toUpperCase().includes('TOTAL')) {
-          sem.totais = [1,2,3,4,5,6].map(j => parseBRL(rows[i][j]));
+          // cols 2-7 = seg a sab
+          sem.totais = [2,3,4,5,6,7].map(j => parseBRL(rows[i][j]));
           i++; break;
         }
-        const v = { nome, dias: [1,2,3,4,5,6].map(j => parseBRL(rows[i][j])) };
-        sem.vendedores.push(v);
+        sem.vendedores.push({
+          nome,
+          dias: [2,3,4,5,6,7].map(j => parseBRL(rows[i][j]))
+        });
         i++;
       }
-      semanas.push(sem);
+      if (sem.vendedores.length > 0) semanas.push(sem);
     } else {
       i++;
     }
