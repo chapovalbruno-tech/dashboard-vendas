@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Dashboard de Vendas</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #080f1a;
+    --surface: #0d1829;
+    --surface2: #111f33;
+    --border: #1a2e4a;
+    --accent: #1d6ef5;
+    --accent2: #00d4aa;
+    --gold: #f5a623;
+    --danger: #ff4d4d;
+    --text: #e8edf5;
+    --muted: #4a6a94;
+    --font-head: 'Syne', sans-serif;
+    --font-body: 'DM Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-body);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Background noise */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; position: relative; z-index: 1; }
+
+  /* Header */
+  header {
+    padding: 32px 0 24px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 32px;
+  }
+  .header-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  h1 { font-family: var(--font-head); font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .last-update { font-size: 11px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); padding: 6px 12px; border-radius: 20px; }
+
+  /* Loading */
+  #loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-height: 60vh; gap: 16px;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #loading p { color: var(--muted); font-size: 14px; }
+
+  /* Error */
+  #error { display: none; text-align: center; padding: 60px 20px; }
+  #error h2 { font-family: var(--font-head); color: var(--danger); margin-bottom: 8px; }
+  #error p { color: var(--muted); font-size: 14px; }
+
+  /* Main content */
+  #content { display: none; }
+
+  /* Section title */
+  .section-label {
+    font-size: 10px; letter-spacing: 3px; text-transform: uppercase;
+    color: var(--muted); margin-bottom: 14px; font-weight: 600;
+  }
+
+  /* Cards de resumo mensal */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+    animation: fadeUp 0.5s ease both;
+  }
+  .card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+  }
+  .card.azul::after { background: linear-gradient(90deg, var(--accent), transparent); }
+  .card.verde::after { background: linear-gradient(90deg, var(--accent2), transparent); }
+  .card.ouro::after  { background: linear-gradient(90deg, var(--gold), transparent); }
+  .card.verm::after  { background: linear-gradient(90deg, var(--danger), transparent); }
+
+  .card-label { font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-bottom: 10px; }
+  .card-value { font-family: var(--font-head); font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .card-value.azul { color: #60a5fa; }
+  .card-value.verde { color: var(--accent2); }
+  .card-value.ouro  { color: var(--gold); }
+  .card-value.verm  { color: var(--danger); }
+
+  /* Progress bar da loja */
+  .progress-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px 24px;
+    margin-bottom: 36px;
+    animation: fadeUp 0.5s 0.1s ease both;
+  }
+  .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .progress-title { font-family: var(--font-head); font-size: 14px; font-weight: 700; }
+  .progress-pct { font-family: var(--font-head); font-size: 24px; font-weight: 800; }
+  .progress-track {
+    background: var(--surface2);
+    border-radius: 99px;
+    height: 10px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .progress-fill {
+    height: 100%;
+    border-radius: 99px;
+    transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .progress-info { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+
+  /* Gráficos */
+  .charts-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 36px;
+  }
+  @media (max-width: 680px) { .charts-row { grid-template-columns: 1fr; } }
+
+  .chart-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    animation: fadeUp 0.5s 0.2s ease both;
+  }
+  .chart-title { font-family: var(--font-head); font-size: 13px; font-weight: 700; margin-bottom: 18px; color: var(--text); }
+  .chart-wrap { position: relative; height: 220px; }
+
+  /* Tabela individual */
+  .table-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    overflow: hidden;
+    margin-bottom: 36px;
+    animation: fadeUp 0.5s 0.3s ease both;
+  }
+  .table-header {
+    padding: 18px 22px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--font-head);
+    font-size: 13px;
+    font-weight: 700;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--surface2); }
+  th {
+    padding: 12px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+  }
+  th:first-child { text-align: left; }
+  td {
+    padding: 14px 16px;
+    font-size: 13px;
+    text-align: center;
+    border-top: 1px solid var(--border);
+    color: var(--text);
+  }
+  td:first-child { text-align: left; font-weight: 600; font-size: 14px; }
+  tr:last-child td { background: var(--surface2); font-weight: 700; color: var(--accent); }
+
+  .badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 99px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-green  { background: rgba(0,212,170,0.15); color: var(--accent2); }
+  .badge-yellow { background: rgba(245,166,35,0.15); color: var(--gold); }
+  .badge-red    { background: rgba(255,77,77,0.15);  color: var(--danger); }
+
+  /* Semanas */
+  .weeks-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 36px;
+  }
+  .week-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 18px;
+    animation: fadeUp 0.5s 0.25s ease both;
+  }
+  .week-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 10px; }
+  .week-vals { display: flex; flex-direction: column; gap: 6px; }
+  .week-row-item { display: flex; justify-content: space-between; font-size: 13px; }
+  .week-row-item span:first-child { color: var(--muted); }
+  .week-row-item span:last-child  { font-weight: 600; }
+  .week-prog { margin-top: 10px; }
+  .week-prog-track { background: var(--surface2); border-radius: 99px; height: 5px; margin-top: 4px; }
+  .week-prog-fill  { height: 100%; border-radius: 99px; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 24px;
+    color: var(--muted);
+    font-size: 11px;
+    border-top: 1px solid var(--border);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(18px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="header-inner">
+      <div class="logo">
+        <div class="logo-icon">📊</div>
+        <div>
+          <h1>Metas de Vendas</h1>
+          <div class="subtitle">Acompanhamento em tempo real</div>
+        </div>
+      </div>
+      <div class="last-update" id="last-update">Carregando...</div>
+    </div>
+  </header>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Buscando dados da planilha...</p>
+  </div>
+
+  <div id="error">
+    <h2>Erro ao carregar dados</h2>
+    <p>Não foi possível acessar a planilha. Verifique se ela está publicada corretamente.</p>
+  </div>
+
+  <div id="content">
+
+    <!-- Cards mensais -->
+    <div class="section-label">Resumo Mensal — Loja</div>
+    <div class="cards-grid" id="cards-mensais"></div>
+
+    <!-- Barra de progresso -->
+    <div class="progress-section">
+      <div class="progress-header">
+        <span class="progress-title">Progresso Geral da Meta</span>
+        <span class="progress-pct" id="prog-pct">0%</span>
+      </div>
+      <div class="progress-track">
+        <div class="progress-fill" id="prog-fill" style="width:0%"></div>
+      </div>
+      <div class="progress-info">
+        <span id="prog-left">Acumulado no mês</span>
+        <span id="prog-right"></span>
+      </div>
+    </div>
+
+    <!-- Gráficos lado a lado -->
+    <div class="section-label">Gráficos</div>
+    <div class="charts-row">
+      <div class="chart-box">
+        <div class="chart-title">🍩 Progresso da Meta</div>
+        <div class="chart-wrap"><canvas id="chartDonut"></canvas></div>
+      </div>
+      <div class="chart-box">
+        <div class="chart-title">📅 Vendas por Dia — Semana Atual</div>
+        <div class="chart-wrap"><canvas id="chartDia"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Semanas -->
+    <div class="section-label">Resumo Semanal</div>
+    <div class="weeks-row" id="weeks-row"></div>
+
+    <!-- Tabela individual -->
+    <div class="section-label">Desempenho Individual</div>
+    <div class="table-section">
+      <div class="table-header">👤 Acumulado no Mês por Vendedor</div>
+      <div style="overflow-x:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>Vendedor</th>
+              <th>Sem 1</th><th>Sem 2</th><th>Sem 3</th><th>Sem 4</th>
+              <th>Total</th><th>Meta</th><th>% Meta</th>
+            </tr>
+          </thead>
+          <tbody id="tabela-individual"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /#content -->
+  <footer>Atualizado automaticamente via Google Sheets &nbsp;·&nbsp; Apenas visualização</footer>
+</div>
+
+<script>
+// ── URLs das planilhas ────────────────────────────────────────────────────
+const URL_SEMANAL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR6GPXKB0wtkJBzz0sBR987Ctp82eaQMEVn4JFfcbO0PzV_vEeuspw-bCngqMF4NZDA2Sg4E0ikFFi7/pub?gid=1251405717&single=true&output=csv";
+const URL_DIARIO  = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR6GPXKB0wtkJBzz0sBR987Ctp82eaQMEVn4JFfcbO0PzV_vEeuspw-bCngqMF4NZDA2Sg4E0ikFFi7/pub?gid=2000741817&single=true&output=csv";
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function parseBRL(str) {
+  if (!str) return 0;
+  return parseFloat(String(str).replace(/R\$\s?/g,'').replace(/\./g,'').replace(',','.')) || 0;
+}
+function fmt(n) {
+  return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:2});
+}
+function pct(v,m) { return m > 0 ? Math.min(100, Math.round(v/m*100)) : 0; }
+function getColor(p) { return p>=100?'#00d4aa': p>=70?'#f5a623':'#ff4d4d'; }
+function getBadge(p) {
+  if (p>=100) return `<span class="badge badge-green">${p}%</span>`;
+  if (p>=70)  return `<span class="badge badge-yellow">${p}%</span>`;
+  return `<span class="badge badge-red">${p}%</span>`;
+}
+
+// ── Parser CSV Semanal ─────────────────────────────────────────────────────
+// Estrutura: linha 0 = cabeçalho vazio, linha 1 = header cols, linhas 2-5 = vendedores, linha 6 = total
+function parseSemanal(rows) {
+  // Encontrar linha de cabeçalho (contém "Vendedor")
+  let hdrIdx = rows.findIndex(r => r.some(c => String(c).trim() === 'Vendedor'));
+  if (hdrIdx < 0) hdrIdx = 1;
+  const hdr = rows[hdrIdx];
+  const vendedores = [];
+  for (let i = hdrIdx+1; i < rows.length; i++) {
+    const r = rows[i];
+    const nome = String(r[0]||'').trim();
+    if (!nome || nome.toUpperCase().includes('TOTAL')) continue;
+    vendedores.push({
+      nome,
+      sem1: parseBRL(r[1]), sem2: parseBRL(r[2]),
+      sem3: parseBRL(r[3]), sem4: parseBRL(r[4]),
+      total: parseBRL(r[5]),
+      meta:  parseBRL(r[6]),
+    });
+  }
+  // Linha de total
+  const totRow = rows.find(r => String(r[0]||'').toUpperCase().includes('TOTAL'));
+  return { vendedores, totRow };
+}
+
+// ── Parser CSV Diário ──────────────────────────────────────────────────────
+// 4 blocos de semana empilhados. Cada bloco: título, cabeçalho, 4 vendedores, total, vazio
+function parseDiario(rows) {
+  const semanas = [];
+  const DIAS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  let i = 0;
+  while (i < rows.length) {
+    const title = String(rows[i]?.[0]||'').trim();
+    if (title.toUpperCase().includes('LANÇAMENTO DIÁRIO') || title.toUpperCase().includes('LANCAMENTO DIARIO')) {
+      // próxima linha = cabeçalho, depois vendedores
+      const sem = { titulo: title, vendedores: [], totais: Array(6).fill(0) };
+      i += 2; // pular título e cabeçalho
+      while (i < rows.length) {
+        const nome = String(rows[i]?.[0]||'').trim();
+        if (!nome) { i++; break; }
+        if (nome.toUpperCase().includes('TOTAL')) {
+          sem.totais = [1,2,3,4,5,6].map(j => parseBRL(rows[i][j]));
+          i++; break;
+        }
+        const v = { nome, dias: [1,2,3,4,5,6].map(j => parseBRL(rows[i][j])) };
+        sem.vendedores.push(v);
+        i++;
+      }
+      semanas.push(sem);
+    } else {
+      i++;
+    }
+  }
+  return semanas;
+}
+
+// ── Render ────────────────────────────────────────────────────────────────
+let donutChart = null, diaChart = null;
+
+function render(semanal, diario) {
+  const { vendedores } = semanal;
+  const metaTotal = vendedores.reduce((a,v)=>a+v.meta,0);
+  const totalReal = vendedores.reduce((a,v)=>a+v.total,0);
+  const pctTotal  = pct(totalReal, metaTotal);
+  const faltam    = Math.max(0, metaTotal - totalReal);
+  const color     = getColor(pctTotal);
+
+  // Cards
+  const cards = [
+    { label:'Meta Mensal da Loja', value: fmt(metaTotal), cls:'azul' },
+    { label:'Total Realizado',     value: fmt(totalReal), cls:'verde' },
+    { label:'% Atingido',          value: pctTotal+'%',   cls:'ouro' },
+    { label:'Faltam para a Meta',  value: fmt(faltam),    cls:'verm' },
+  ];
+  document.getElementById('cards-mensais').innerHTML = cards.map(c=>`
+    <div class="card ${c.cls}">
+      <div class="card-label">${c.label}</div>
+      <div class="card-value ${c.cls}">${c.value}</div>
+    </div>`).join('');
+
+  // Progress bar
+  document.getElementById('prog-pct').textContent = pctTotal+'%';
+  document.getElementById('prog-pct').style.color = color;
+  const fill = document.getElementById('prog-fill');
+  fill.style.background = color;
+  setTimeout(()=>{ fill.style.width = pctTotal+'%'; }, 100);
+  document.getElementById('prog-right').textContent = fmt(totalReal)+' / '+fmt(metaTotal);
+
+  // Donut chart
+  if (donutChart) donutChart.destroy();
+  donutChart = new Chart(document.getElementById('chartDonut'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Realizado','Falta'],
+      datasets:[{ data:[totalReal, faltam],
+        backgroundColor:['#C07820','#1a2e4a'],
+        borderWidth:0, hoverOffset:4 }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      cutout:'65%',
+      plugins:{
+        legend:{ position:'bottom', labels:{ color:'#4a6a94', font:{size:11} } },
+        tooltip:{ callbacks:{ label: ctx => ' '+fmt(ctx.raw) } }
+      }
+    }
+  });
+
+  // Gráfico de barras — dia da semana (semana mais recente com dados)
+  const semComDados = [...diario].reverse().find(s => s.totais.some(v=>v>0)) || diario[0];
+  const DIAS = ['Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+  if (diaChart) diaChart.destroy();
+  diaChart = new Chart(document.getElementById('chartDia'), {
+    type: 'bar',
+    data: {
+      labels: DIAS,
+      datasets:[{
+        label:'Vendas (R$)',
+        data: semComDados ? semComDados.totais : Array(6).fill(0),
+        backgroundColor:'#2E75B6',
+        borderRadius:6,
+        borderSkipped:false,
+      }]
+    },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{ callbacks:{ label: ctx => ' '+fmt(ctx.raw) } }
+      },
+      scales:{
+        x:{ grid:{color:'#1a2e4a'}, ticks:{color:'#4a6a94',font:{size:11}} },
+        y:{ grid:{color:'#1a2e4a'}, ticks:{color:'#4a6a94',font:{size:11},
+          callback: v => 'R$'+v.toLocaleString('pt-BR') }}
+      }
+    }
+  });
+
+  // Semanas
+  const metaSem = metaTotal / 4;
+  const semLabels = ['Semana 1','Semana 2','Semana 3','Semana 4'];
+  const semVals   = [
+    vendedores.reduce((a,v)=>a+v.sem1,0),
+    vendedores.reduce((a,v)=>a+v.sem2,0),
+    vendedores.reduce((a,v)=>a+v.sem3,0),
+    vendedores.reduce((a,v)=>a+v.sem4,0),
+  ];
+  document.getElementById('weeks-row').innerHTML = semLabels.map((lbl,i)=>{
+    const val = semVals[i];
+    const p   = pct(val, metaSem);
+    const c   = getColor(p);
+    return `<div class="week-card">
+      <div class="week-label">${lbl}</div>
+      <div class="week-vals">
+        <div class="week-row-item"><span>Meta</span><span>${fmt(metaSem)}</span></div>
+        <div class="week-row-item"><span>Realizado</span><span style="color:${c}">${fmt(val)}</span></div>
+        <div class="week-row-item"><span>Faltam</span><span>${fmt(Math.max(0,metaSem-val))}</span></div>
+      </div>
+      <div class="week-prog">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
+          <span>Progresso</span><span style="color:${c};font-weight:600">${p}%</span>
+        </div>
+        <div class="week-prog-track">
+          <div class="week-prog-fill" style="width:${p}%;background:${c}"></div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Tabela individual
+  const tbody = vendedores.map(v=>{
+    const p = pct(v.total, v.meta);
+    return `<tr>
+      <td>${v.nome}</td>
+      <td>${fmt(v.sem1)}</td><td>${fmt(v.sem2)}</td>
+      <td>${fmt(v.sem3)}</td><td>${fmt(v.sem4)}</td>
+      <td><strong>${fmt(v.total)}</strong></td>
+      <td style="color:var(--muted)">${fmt(v.meta)}</td>
+      <td>${getBadge(p)}</td>
+    </tr>`;
+  }).join('');
+
+  const totSem1 = vendedores.reduce((a,v)=>a+v.sem1,0);
+  const totSem2 = vendedores.reduce((a,v)=>a+v.sem2,0);
+  const totSem3 = vendedores.reduce((a,v)=>a+v.sem3,0);
+  const totSem4 = vendedores.reduce((a,v)=>a+v.sem4,0);
+  const totPct  = pct(totalReal, metaTotal);
+
+  document.getElementById('tabela-individual').innerHTML = tbody + `
+    <tr>
+      <td>TOTAL LOJA</td>
+      <td>${fmt(totSem1)}</td><td>${fmt(totSem2)}</td>
+      <td>${fmt(totSem3)}</td><td>${fmt(totSem4)}</td>
+      <td>${fmt(totalReal)}</td>
+      <td>${fmt(metaTotal)}</td>
+      <td>${getBadge(totPct)}</td>
+    </tr>`;
+
+  // Atualizar hora
+  document.getElementById('last-update').textContent =
+    'Atualizado: ' + new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('content').style.display = 'block';
+}
+
+// ── Fetch dados ───────────────────────────────────────────────────────────
+async function fetchCSV(url) {
+  return new Promise((resolve, reject) => {
+    Papa.parse("https://corsproxy.io/?" + encodeURIComponent(url), {
+      download: true,
+      skipEmptyLines: false,
+      complete: r => resolve(r.data),
+      error: e => reject(e)
+    });
+  });
+}
+
+async function loadData() {
+  try {
+    const [rowsSem, rowsDia] = await Promise.all([
+      fetchCSV(URL_SEMANAL),
+      fetchCSV(URL_DIARIO)
+    ]);
+    const semanal = parseSemanal(rowsSem);
+    const diario  = parseDiario(rowsDia);
+    render(semanal, diario);
+  } catch(e) {
+    console.error(e);
+    document.getElementById('loading').style.display = 'none';
+    document.getElementById('error').style.display = 'block';
+  }
+}
+
+loadData();
+// Atualiza automaticamente a cada 5 minutos
+setInterval(loadData, 5 * 60 * 1000);
+</script>
+</body>
+</html>
