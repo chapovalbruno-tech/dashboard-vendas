@@ -555,13 +555,9 @@ async function fetchCSV(url) {
 
 async function loadData() {
   try {
-    const [rowsSem, rowsDia] = await Promise.all([
-      fetchCSV(URL_SEMANAL),
-      fetchCSV(URL_DIARIO)
-    ]);
+    const rowsSem = await fetchCSV(URL_SEMANAL);
     const semanal = parseSemanal(rowsSem);
-    const diario  = parseDiario(rowsDia);
-    render(semanal, diario);
+    render(semanal, []);
   } catch(e) {
     console.error(e);
     document.getElementById('loading').style.display = 'none';
