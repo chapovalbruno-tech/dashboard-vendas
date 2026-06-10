@@ -322,7 +322,7 @@
           <thead>
             <tr>
               <th>Vendedor</th>
-              <th>Sem 1</th><th>Sem 2</th><th>Sem 3</th><th>Sem 4</th>
+              <th>Sem 1</th><th>Sem 2</th><th>Sem 3</th><th>Sem 4</th><th>Sem 5</th>
               <th>Total</th><th>Meta</th><th>% Meta</th>
             </tr>
           </thead>
@@ -378,6 +378,7 @@ function parseSemanal(rows) {
       sem2:  parseBRL(r[3]),
       sem3:  parseBRL(r[4]),
       sem4:  parseBRL(r[5]),
+      sem5:  parseBRL(r[6]),
       total: parseBRL(r[7]),
       meta:  parseBRL(r[8]),
     });
@@ -480,12 +481,13 @@ function render(semanal, diario) {
 
   // Semanas
   const metaSem = metaTotal / 4;
-  const semLabels = ['Semana 1','Semana 2','Semana 3','Semana 4'];
+  const semLabels = ['Semana 1','Semana 2','Semana 3','Semana 4','Semana 5'];
   const semVals   = [
     vendedores.reduce((a,v)=>a+v.sem1,0),
     vendedores.reduce((a,v)=>a+v.sem2,0),
     vendedores.reduce((a,v)=>a+v.sem3,0),
     vendedores.reduce((a,v)=>a+v.sem4,0),
+    vendedores.reduce((a,v)=>a+(v.sem5||0),0),
   ];
   document.getElementById('weeks-row').innerHTML = semLabels.map((lbl,i)=>{
     const val = semVals[i];
@@ -515,7 +517,7 @@ function render(semanal, diario) {
     return `<tr>
       <td>${v.nome}</td>
       <td>${fmt(v.sem1)}</td><td>${fmt(v.sem2)}</td>
-      <td>${fmt(v.sem3)}</td><td>${fmt(v.sem4)}</td>
+      <td>${fmt(v.sem3)}</td><td>${fmt(v.sem4)}</td><td>${fmt(v.sem5||0)}</td>
       <td><strong>${fmt(v.total)}</strong></td>
       <td style="color:var(--muted)">${fmt(v.meta)}</td>
       <td>${getBadge(p)}</td>
@@ -526,13 +528,14 @@ function render(semanal, diario) {
   const totSem2 = vendedores.reduce((a,v)=>a+v.sem2,0);
   const totSem3 = vendedores.reduce((a,v)=>a+v.sem3,0);
   const totSem4 = vendedores.reduce((a,v)=>a+v.sem4,0);
+  const totSem5 = vendedores.reduce((a,v)=>a+(v.sem5||0),0);
   const totPct  = pct(totalReal, metaTotal);
 
   document.getElementById('tabela-individual').innerHTML = tbody + `
     <tr>
       <td>TOTAL LOJA</td>
       <td>${fmt(totSem1)}</td><td>${fmt(totSem2)}</td>
-      <td>${fmt(totSem3)}</td><td>${fmt(totSem4)}</td>
+      <td>${fmt(totSem3)}</td><td>${fmt(totSem4)}</td><td>${fmt(totSem5)}</td>
       <td>${fmt(totalReal)}</td>
       <td>${fmt(metaTotal)}</td>
       <td>${getBadge(totPct)}</td>
