@@ -359,29 +359,32 @@ function getBadge(p) {
 // ── Parser CSV Semanal ─────────────────────────────────────────────────────
 // Estrutura real: col 0 vazia, col 1 = nome, col 2-5 = sem1-4, col 6 = total, col 7 = meta
 function parseSemanal(rows) {
+  // Estrutura do CSV (5 semanas):
+  // col 0=vazia, col 1=nome, col 2=sem1, col 3=sem2, col 4=sem3, col 5=sem4, col 6=sem5, col 7=total, col 8=meta
   const vendedores = [];
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i];
-    // Pegar o nome da col 1 (col 0 é vazia)
     const nome = String(r[1]||'').trim();
     if (!nome) continue;
-    // Ignorar linhas de título/cabeçalho/instrução
     if (nome.toUpperCase().includes('LANÇAMENTO') ||
         nome.toUpperCase().includes('LANCAMENTO') ||
         nome === 'Vendedor' ||
         nome.toUpperCase().includes('PREENCHA')) continue;
-    // Linha de total
     if (nome.toUpperCase().includes('TOTAL')) continue;
+
     vendedores.push({
       nome,
-      sem1:  parseBRL(r[2]), sem2: parseBRL(r[3]),
-      sem3:  parseBRL(r[4]), sem4: parseBRL(r[5]),
-      total: parseBRL(r[6]),
-      meta:  parseBRL(r[7]),
+      sem1:  parseBRL(r[2]),
+      sem2:  parseBRL(r[3]),
+      sem3:  parseBRL(r[4]),
+      sem4:  parseBRL(r[5]),
+      total: parseBRL(r[7]),
+      meta:  parseBRL(r[8]),
     });
   }
   return { vendedores };
 }
+
 
 // ── Parser CSV Diário ──────────────────────────────────────────────────────
 // Col 0 vazia, col 1 = nome/título, col 2-7 = seg-sab, col 8 = total
