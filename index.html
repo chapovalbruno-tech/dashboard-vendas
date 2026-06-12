@@ -428,10 +428,10 @@ function parseDiario(rows) {
 // ── Render ────────────────────────────────────────────────────────────────
 let donutChart = null;
 
-function render(semanal, diario) {
+function render(semanal, diario, semDados) {
   const { vendedores } = semanal;
-  const metaTotal = vendedores.reduce((a,v)=>a+v.meta,0);
-  const totalReal = vendedores.reduce((a,v)=>a+v.total,0);
+  const metaTotal = (semDados && semDados.metaLoja > 0) ? semDados.metaLoja : vendedores.reduce((a,v)=>a+v.meta,0);
+  const totalReal = (semDados && semDados.totalReal > 0) ? semDados.totalReal : vendedores.reduce((a,v)=>a+v.total,0);
   const pctTotal  = pct(totalReal, metaTotal);
   const faltam    = Math.max(0, metaTotal - totalReal);
   const color     = getColor(pctTotal);
@@ -480,25 +480,31 @@ function render(semanal, diario) {
   // Gráfico de barras removido
 
   // Semanas
-  const metaSem = metaTotal / 4;
   const semLabels = ['Semana 1','Semana 2','Semana 3','Semana 4','Semana 5'];
-  const semVals   = [
+
+  // Usar dados reais da planilha se disponíveis
+  const usarDash = semDados && semDados.semanas && semDados.semanas.length > 0;
+  const semValsReal = [
     vendedores.reduce((a,v)=>a+v.sem1,0),
     vendedores.reduce((a,v)=>a+v.sem2,0),
     vendedores.reduce((a,v)=>a+v.sem3,0),
     vendedores.reduce((a,v)=>a+v.sem4,0),
     vendedores.reduce((a,v)=>a+(v.sem5||0),0),
   ];
+
   document.getElementById('weeks-row').innerHTML = semLabels.map((lbl,i)=>{
-    const val = semVals[i];
-    const p   = pct(val, metaSem);
-    const c   = getColor(p);
+    const ds  = usarDash && semDados.semanas[i] ? semDados.semanas[i] : null;
+    const metaS = ds ? ds.meta : (metaTotal / semLabels.length);
+    const val   = ds ? ds.realizado : semValsReal[i];
+    const faltS = ds ? Math.max(0, ds.faltam) : Math.max(0, metaS - val);
+    const p     = ds ? ds.pct : pct(val, metaS);
+    const c     = getColor(p);
     return `<div class="week-card">
       <div class="week-label">${lbl}</div>
       <div class="week-vals">
-        <div class="week-row-item"><span>Meta</span><span>${fmt(metaSem)}</span></div>
+        <div class="week-row-item"><span>Meta</span><span>${fmt(metaS)}</span></div>
         <div class="week-row-item"><span>Realizado</span><span style="color:${c}">${fmt(val)}</span></div>
-        <div class="week-row-item"><span>Faltam</span><span>${fmt(Math.max(0,metaSem-val))}</span></div>
+        <div class="week-row-item"><span>Faltam</span><span>${fmt(faltS)}</span></div>
       </div>
       <div class="week-prog">
         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
@@ -559,11 +565,86 @@ async function fetchCSV(url) {
   return result.data;
 }
 
+
+// ── Parser CSV Dashboard ────────────────────────────────────────────────────
+// Extrai metas e realizados semanais direto da aba Dashboard da planilha
+function parseDashboard(rows) {
+  const result = {
+    metaLoja: 0, totalReal: 0,
+    semanas: [] // [{meta, realizado, faltam, pct}]
+  };
+
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const label = String(r[1]||r[0]||'').trim().toUpperCase();
+
+    // Resumo mensal
+    if (label.includes('META MENSAL') || label.includes('META DA LOJA')) {
+      // Pegar primeiro valor numérico da linha
+      for (let j = 2; j < r.length; j++) {
+        const v = parseBRL(r[j]);
+        if (v > 0) { result.metaLoja = v; break; }
+      }
+    }
+    if (label.includes('TOTAL REALIZADO') && !label.includes('SEMANA')) {
+      for (let j = 2; j < r.length; j++) {
+        const v = parseBRL(r[j]);
+        if (v > 0) { result.totalReal = v; break; }
+      }
+    }
+
+    // Resumo semanal — linha "Meta Semanal"
+    if (label.includes('META SEMANAL') || label === 'META SEMANAL') {
+      result.semanas = [];
+      // Colunas 2-6 = sem1 a sem5
+      for (let j = 2; j <= 6; j++) {
+        const v = parseBRL(r[j]);
+        if (String(r[j]||'').trim() !== '') {
+          result.semanas.push({ meta: v, realizado: 0, faltam: 0, pct: 0 });
+        }
+      }
+    }
+
+    // Linha "Total Vendido" — preenche realizados
+    if ((label.includes('TOTAL VENDIDO') || label === 'TOTAL VENDIDO') && result.semanas.length > 0) {
+      let idx = 0;
+      for (let j = 2; j <= 6 && idx < result.semanas.length; j++) {
+        if (String(r[j]||'').trim() !== '') {
+          result.semanas[idx].realizado = parseBRL(r[j]);
+          idx++;
+        }
+      }
+    }
+
+    // Linha "Faltam / Saldo"
+    if ((label.includes('FALTAM') || label.includes('SALDO')) && result.semanas.length > 0) {
+      let idx = 0;
+      for (let j = 2; j <= 6 && idx < result.semanas.length; j++) {
+        if (String(r[j]||'').trim() !== '') {
+          result.semanas[idx].faltam = parseBRL(r[j]);
+          idx++;
+        }
+      }
+    }
+  }
+
+  // Calcular % de cada semana
+  result.semanas.forEach(s => {
+    s.pct = s.meta > 0 ? Math.min(100, Math.round(s.realizado / s.meta * 100)) : 0;
+  });
+
+  return result;
+}
+
 async function loadData() {
   try {
-    const rowsSem = await fetchCSV(URL_SEMANAL);
-    const semanal = parseSemanal(rowsSem);
-    render(semanal, []);
+    const [rowsSem, rowsDash] = await Promise.all([
+      fetchCSV(URL_SEMANAL),
+      fetchCSV(URL_DASHBOARD)
+    ]);
+    const semanal   = parseSemanal(rowsSem);
+    const semDados  = parseDashboard(rowsDash);
+    render(semanal, [], semDados);
   } catch(e) {
     console.error(e);
     document.getElementById('loading').style.display = 'none';
