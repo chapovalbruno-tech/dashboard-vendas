@@ -337,8 +337,9 @@
 
 <script>
 // ── URLs das planilhas ────────────────────────────────────────────────────
-const URL_SEMANAL = "https://docs.google.com/spreadsheets/d/1ruYc27jTQq3DKx5c62sxrbgWuKp49MWKc7vqcCfTKMY/gviz/tq?tqx=out:csv&gid=1251405717";
-const URL_DIARIO  = "https://docs.google.com/spreadsheets/d/1ruYc27jTQq3DKx5c62sxrbgWuKp49MWKc7vqcCfTKMY/gviz/tq?tqx=out:csv&gid=2000741817";
+const URL_SEMANAL   = "https://docs.google.com/spreadsheets/d/1ruYc27jTQq3DKx5c62sxrbgWuKp49MWKc7vqcCfTKMY/gviz/tq?tqx=out:csv&gid=1251405717";
+const URL_DASHBOARD = "https://docs.google.com/spreadsheets/d/1ruYc27jTQq3DKx5c62sxrbgWuKp49MWKc7vqcCfTKMY/gviz/tq?tqx=out:csv&gid=854183082";
+const URL_DIARIO    = null;
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function parseBRL(str) {
@@ -566,75 +567,38 @@ async function fetchCSV(url) {
 }
 
 
-// ── Parser CSV Dashboard ────────────────────────────────────────────────────
-// Extrai metas e realizados semanais direto da aba Dashboard da planilha
+// ── Parser CSV Dashboard (aba Dados) ────────────────────────────────────────
 function parseDashboard(rows) {
-  const result = {
-    metaLoja: 0, totalReal: 0,
-    semanas: [] // [{meta, realizado, faltam, pct}]
-  };
+  const result = { metaLoja: 0, totalReal: 0, semanas: [] };
+  for (let i = 0; i < 5; i++) result.semanas.push({ meta:0, realizado:0, faltam:0, pct:0 });
 
   for (let i = 0; i < rows.length; i++) {
-    const r = rows[i];
-    const label = String(r[1]||r[0]||'').trim().toUpperCase();
-
-    // Resumo mensal
-    if (label.includes('META MENSAL') || label.includes('META DA LOJA')) {
-      // Pegar primeiro valor numérico da linha
-      for (let j = 2; j < r.length; j++) {
-        const v = parseBRL(r[j]);
-        if (v > 0) { result.metaLoja = v; break; }
-      }
-    }
-    if (label.includes('TOTAL REALIZADO') && !label.includes('SEMANA')) {
-      for (let j = 2; j < r.length; j++) {
-        const v = parseBRL(r[j]);
-        if (v > 0) { result.totalReal = v; break; }
-      }
-    }
-
-    // Resumo semanal — linha "Meta Semanal"
-    if (label.includes('META SEMANAL') || label === 'META SEMANAL') {
-      result.semanas = [];
-      // Colunas 2-6 = sem1 a sem5
-      for (let j = 2; j <= 6; j++) {
-        const v = parseBRL(r[j]);
-        if (String(r[j]||'').trim() !== '') {
-          result.semanas.push({ meta: v, realizado: 0, faltam: 0, pct: 0 });
-        }
-      }
-    }
-
-    // Linha "Total Vendido" — preenche realizados
-    if ((label.includes('TOTAL VENDIDO') || label === 'TOTAL VENDIDO') && result.semanas.length > 0) {
-      let idx = 0;
-      for (let j = 2; j <= 6 && idx < result.semanas.length; j++) {
-        if (String(r[j]||'').trim() !== '') {
-          result.semanas[idx].realizado = parseBRL(r[j]);
-          idx++;
-        }
-      }
-    }
-
-    // Linha "Faltam / Saldo"
-    if ((label.includes('FALTAM') || label.includes('SALDO')) && result.semanas.length > 0) {
-      let idx = 0;
-      for (let j = 2; j <= 6 && idx < result.semanas.length; j++) {
-        if (String(r[j]||'').trim() !== '') {
-          result.semanas[idx].faltam = parseBRL(r[j]);
-          idx++;
-        }
-      }
-    }
+    const label = String(rows[i][0]||'').trim().toUpperCase();
+    const val   = parseBRL(rows[i][1]);
+    if (label.includes('META LOJA'))       result.metaLoja        = val;
+    else if (label.includes('TOTAL REAL')) result.totalReal       = val;
+    else if (label === 'META SEM 1')       result.semanas[0].meta = val;
+    else if (label === 'META SEM 2')       result.semanas[1].meta = val;
+    else if (label === 'META SEM 3')       result.semanas[2].meta = val;
+    else if (label === 'META SEM 4')       result.semanas[3].meta = val;
+    else if (label === 'META SEM 5')       result.semanas[4].meta = val;
+    else if (label === 'REAL SEM 1')       result.semanas[0].realizado = val;
+    else if (label === 'REAL SEM 2')       result.semanas[1].realizado = val;
+    else if (label === 'REAL SEM 3')       result.semanas[2].realizado = val;
+    else if (label === 'REAL SEM 4')       result.semanas[3].realizado = val;
+    else if (label === 'REAL SEM 5')       result.semanas[4].realizado = val;
+    else if (label === 'FALTA SEM 1')      result.semanas[0].faltam = val;
+    else if (label === 'FALTA SEM 2')      result.semanas[1].faltam = val;
+    else if (label === 'FALTA SEM 3')      result.semanas[2].faltam = val;
+    else if (label === 'FALTA SEM 4')      result.semanas[3].faltam = val;
+    else if (label === 'FALTA SEM 5')      result.semanas[4].faltam = val;
   }
-
-  // Calcular % de cada semana
   result.semanas.forEach(s => {
     s.pct = s.meta > 0 ? Math.min(100, Math.round(s.realizado / s.meta * 100)) : 0;
   });
-
   return result;
 }
+
 
 async function loadData() {
   try {
